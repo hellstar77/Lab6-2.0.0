@@ -10,7 +10,7 @@ public class NewJFrame extends javax.swing.JFrame {
     private DefaultTableModel model;
     private Connection connection;
 
-    // Створимо новий DefaultTableModel та скопіюємо дані з поточної моделі
+    // Новий DefaultTableModel та скопіюємо дані з поточної моделі
     private DefaultTableModel createCopyTableModel(DefaultTableModel originalModel) {
         DefaultTableModel copyModel = new DefaultTableModel();
         // Додаємо колонки
@@ -123,11 +123,11 @@ public class NewJFrame extends javax.swing.JFrame {
         gbc.gridy++;
         centerPanel.add(jButton4, gbc);
         gbc.gridy++;
-        centerPanel.add(jButton5, gbc); // Додана кнопка "Оновити дані"
+        centerPanel.add(jButton5, gbc);
         gbc.gridy++;
-        centerPanel.add(jTextField1, gbc); // Додане поле для введення дати
+        centerPanel.add(jTextField1, gbc);
         gbc.gridy++;
-        centerPanel.add(jButton6, gbc); // Додана кнопка для пошуку за датою
+        centerPanel.add(jButton6, gbc);
 
         getContentPane().add(centerPanel, BorderLayout.CENTER);
 
@@ -253,7 +253,7 @@ public class NewJFrame extends javax.swing.JFrame {
             PreparedStatement clearStatement = connection.prepareStatement(clearSql);
             clearStatement.executeUpdate();
 
-            // Додамо всі рядки з моделі до бази даних
+            // Всі рядки з моделі до бази даних
             String insertSql = "INSERT INTO deathnote (Date, Time, Thema, Contents, Priority) VALUES (?, ?, ?, ?, ?)";
             PreparedStatement insertStatement = connection.prepareStatement(insertSql);
             for (int i = 0; i < model.getRowCount(); i++) {
@@ -349,9 +349,9 @@ public class NewJFrame extends javax.swing.JFrame {
     private javax.swing.JButton jButton2;
     private javax.swing.JButton jButton3;
     private javax.swing.JButton jButton4;
-    private javax.swing.JButton jButton5; // Додана кнопка для оновлення даних
-    private javax.swing.JButton jButton6; // Додана кнопка для пошуку за датою
-    private javax.swing.JTextField jTextField1; // Додане поле для введення дати
+    private javax.swing.JButton jButton5;
+    private javax.swing.JButton jButton6;
+    private javax.swing.JTextField jTextField1;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JTable jTable1;
 }
