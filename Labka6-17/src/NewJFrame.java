@@ -5,19 +5,37 @@ import java.awt.event.*;
 import java.io.*;
 import java.sql.*;
 
-/**
- * Клас, який представляє головне вікно додатку.
- */
 public class NewJFrame extends javax.swing.JFrame {
+    private DefaultTableModel initialModel;
+    private DefaultTableModel model;
+    private Connection connection;
 
-    /**
-     * Конструктор класу NewJFrame.
-     */
-    public NewJFrame() {
-        initComponents();
+    // Створимо новий DefaultTableModel та скопіюємо дані з поточної моделі
+    private DefaultTableModel createCopyTableModel(DefaultTableModel originalModel) {
+        DefaultTableModel copyModel = new DefaultTableModel();
+        // Додаємо колонки
+        for (int columnIndex = 0; columnIndex < originalModel.getColumnCount(); columnIndex++) {
+            copyModel.addColumn(originalModel.getColumnName(columnIndex));
+        }
+        // Додаємо дані
+        for (int rowIndex = 0; rowIndex < originalModel.getRowCount(); rowIndex++) {
+            Object[] rowData = new Object[originalModel.getColumnCount()];
+            for (int columnIndex = 0; columnIndex < originalModel.getColumnCount(); columnIndex++) {
+                rowData[columnIndex] = originalModel.getValueAt(rowIndex, columnIndex);
+            }
+            copyModel.addRow(rowData);
+        }
+        return copyModel;
     }
 
-    @SuppressWarnings("unchecked")
+    public NewJFrame() {
+        initComponents();
+        connectToDatabase();
+        // Ініціалізуємо початкову модель як копію поточної моделі
+        initialModel = createCopyTableModel(model);
+    }
+
+
     private void initComponents() {
         jScrollPane1 = new javax.swing.JScrollPane();
         jTable1 = new javax.swing.JTable();
@@ -25,17 +43,22 @@ public class NewJFrame extends javax.swing.JFrame {
         jButton2 = new javax.swing.JButton();
         jButton3 = new javax.swing.JButton();
         jButton4 = new javax.swing.JButton();
+        jButton5 = new javax.swing.JButton(); // Кнопка для оновлення даних
+        jTextField1 = new javax.swing.JTextField(); // Поле для введення дати пошуку
+        jButton6 = new javax.swing.JButton(); // Кнопка для пошуку
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
-        jTable1.setModel(new javax.swing.table.DefaultTableModel(
+        model = new DefaultTableModel(
                 new Object [][] {
 
                 },
                 new String [] {
                         "Дата", "Час", "Тема", "Вкладення", "Пріорітетність"
                 }
-        ));
+        );
+
+        jTable1.setModel(model);
         jScrollPane1.setViewportView(jTable1);
 
         jButton1.setText("Завантажити таблицю");
@@ -68,7 +91,24 @@ public class NewJFrame extends javax.swing.JFrame {
             }
         });
 
-        // Розташування компонентів в центрі вікна
+        jButton5.setText("Оновити дані"); // Текст кнопки "Оновити дані"
+        jButton5.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButton5ActionPerformed(evt);
+            }
+        });
+
+
+        jTextField1.setToolTipText("Введіть дату у форматі yyyy-mm-dd");
+        jTextField1.setColumns(20);
+
+        jButton6.setText("Пошук по даті"); // Кнопка для пошуку за датою
+        jButton6.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                jButton6ActionPerformed(evt);
+            }
+        });
+
         JPanel centerPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0;
@@ -82,25 +122,66 @@ public class NewJFrame extends javax.swing.JFrame {
         centerPanel.add(jButton3, gbc);
         gbc.gridy++;
         centerPanel.add(jButton4, gbc);
+        gbc.gridy++;
+        centerPanel.add(jButton5, gbc); // Додана кнопка "Оновити дані"
+        gbc.gridy++;
+        centerPanel.add(jTextField1, gbc); // Додане поле для введення дати
+        gbc.gridy++;
+        centerPanel.add(jButton6, gbc); // Додана кнопка для пошуку за датою
 
         getContentPane().add(centerPanel, BorderLayout.CENTER);
 
         pack();
     }
 
-    /**
-     * Обробник події для кнопки "Завантажити таблицю".
-     */
     private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {
-        DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
-        model.setRowCount(0);
+        loadTableDataFromServer();
+    }
 
+    private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {
+        model.addRow(new Object[]{"Дата", "Час", "Тема", "Вкладення", "Пріорітетність"});
+    }
+
+    private void jButton3ActionPerformed(java.awt.event.ActionEvent evt) {
+        int selectedRowIndex = jTable1.getSelectedRow();
+        if (selectedRowIndex >= 0) {
+            model.removeRow(selectedRowIndex);
+            deleteRowFromServer(selectedRowIndex);
+        } else {
+            JOptionPane.showMessageDialog(this, "Виберіть рядок для видалення", "Помилка", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void jButton4ActionPerformed(java.awt.event.ActionEvent evt) {
+        saveTableToFile();
+    }
+
+    private void jButton5ActionPerformed(java.awt.event.ActionEvent evt) {
+        updateDataOnServer();
+    }
+
+    private void jButton6ActionPerformed(java.awt.event.ActionEvent evt) {
+        String searchDate = jTextField1.getText();
+        searchByDate(searchDate);
+    }
+
+
+    private void connectToDatabase() {
         try {
             String url = "jdbc:mysql://localhost:3306/lab6";
             String username = "root";
             String password = "";
-            Connection connection = DriverManager.getConnection(url, username, password);
+            connection = DriverManager.getConnection(url, username, password);
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Error connecting to database: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
 
+    public void loadTableDataFromServer() {
+        model.setRowCount(0);
+
+        try {
             String sql = "SELECT Date, Time, Thema, Contents, Priority FROM deathnote";
             Statement statement = connection.createStatement();
             ResultSet resultSet = statement.executeQuery(sql);
@@ -116,57 +197,38 @@ public class NewJFrame extends javax.swing.JFrame {
                 model.addRow(rowData);
             }
 
-            jButton2.setEnabled(true); // Enable add button after loading data
-            jButton3.setEnabled(true); // Enable delete button after loading data
+            jButton2.setEnabled(true);
+            jButton3.setEnabled(true);
         } catch (SQLException ex) {
             ex.printStackTrace();
             JOptionPane.showMessageDialog(this, "Error loading data: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    /**
-     * Обробник події для кнопки "Додати".
-     */
-    private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {
-        DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
-        model.addRow(new Object[]{"", "", "", "", ""});
-    }
-
-    /**
-     * Обробник події для кнопки "Видалити".
-     */
-    private void jButton3ActionPerformed(java.awt.event.ActionEvent evt) {
-        int selectedRowIndex = jTable1.getSelectedRow();
-        if (selectedRowIndex >= 0) {
-            DefaultTableModel model = (DefaultTableModel) jTable1.getModel();
-            model.removeRow(selectedRowIndex);
+    private void deleteRowFromServer(int rowIndex) {
+        try {
+            String sql = "DELETE FROM deathnote WHERE Date=? AND Time=? AND Thema=? AND Contents=? AND Priority=?";
+            PreparedStatement statement = connection.prepareStatement(sql);
+            statement.setDate(1, (Date) model.getValueAt(rowIndex, 0));
+            statement.setTime(2, (Time) model.getValueAt(rowIndex, 1));
+            statement.setString(3, (String) model.getValueAt(rowIndex, 2));
+            statement.setString(4, (String) model.getValueAt(rowIndex, 3));
+            statement.setString(5, (String) model.getValueAt(rowIndex, 4));
+            statement.executeUpdate();
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Error deleting data from server: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
-        jButton3.setEnabled(false);
     }
 
-    /**
-     * Обробник події для кнопки "Зберегти таблицю у файл".
-     */
-    private void jButton4ActionPerformed(java.awt.event.ActionEvent evt) {
-        saveTableToFile(jTable1);
-    }
-
-    /**
-     * Зберігає таблицю у текстовий файл.
-     *
-     * @param table таблиця, яку потрібно зберегти
-     */
-    public void saveTableToFile(JTable table) {
-        DefaultTableModel model = (DefaultTableModel) table.getModel();
-        int rowCount = model.getRowCount();
-
+    public void saveTableToFile() {
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setDialogTitle("Save Table to File");
         int userSelection = fileChooser.showSaveDialog(this);
         if (userSelection == JFileChooser.APPROVE_OPTION) {
             File fileToSave = fileChooser.getSelectedFile();
             try (PrintWriter writer = new PrintWriter(fileToSave)) {
-                for (int i = 0; i < rowCount; i++) {
+                for (int i = 0; i < model.getRowCount(); i++) {
                     for (int j = 0; j < model.getColumnCount(); j++) {
                         writer.print(model.getValueAt(i, j));
                         if (j < model.getColumnCount() - 1) {
@@ -183,11 +245,98 @@ public class NewJFrame extends javax.swing.JFrame {
         }
     }
 
-    /**
-     * Точка входу в програму.
-     *
-     * @param args аргументи командного рядка
-     */
+    private void updateDataOnServer() {
+        // Оновлення всіх даних на сервері
+        try {
+            // Очистимо таблицю на сервері
+            String clearSql = "TRUNCATE TABLE deathnote";
+            PreparedStatement clearStatement = connection.prepareStatement(clearSql);
+            clearStatement.executeUpdate();
+
+            // Додамо всі рядки з моделі до бази даних
+            String insertSql = "INSERT INTO deathnote (Date, Time, Thema, Contents, Priority) VALUES (?, ?, ?, ?, ?)";
+            PreparedStatement insertStatement = connection.prepareStatement(insertSql);
+            for (int i = 0; i < model.getRowCount(); i++) {
+                // Перевіряємо, чи всі обов'язкові поля заповнені
+                if (model.getValueAt(i, 0) != null && model.getValueAt(i, 1) != null &&
+                        model.getValueAt(i, 2) != null && model.getValueAt(i, 3) != null &&
+                        model.getValueAt(i, 4) != null) {
+                    // Перевіряємо, чи дані відповідають очікуваним типам даних
+                    if (model.getValueAt(i, 0) instanceof String &&
+                            model.getValueAt(i, 1) instanceof String &&
+                            model.getValueAt(i, 2) instanceof String &&
+                            model.getValueAt(i, 3) instanceof String &&
+                            model.getValueAt(i, 4) instanceof String) {
+                        insertStatement.setDate(1, java.sql.Date.valueOf((String) model.getValueAt(i, 0)));
+                        insertStatement.setTime(2, java.sql.Time.valueOf((String) model.getValueAt(i, 1)));
+                        insertStatement.setString(3, (String) model.getValueAt(i, 2));
+                        insertStatement.setString(4, (String) model.getValueAt(i, 3));
+                        insertStatement.setString(5, (String) model.getValueAt(i, 4));
+                        insertStatement.executeUpdate();
+                    }
+                }
+            }
+
+            JOptionPane.showMessageDialog(this, "Data updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Error updating data on server: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void searchByDate(String searchDate) {
+        if (searchDate.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Введіть дату для пошуку", "Помилка", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        DefaultTableModel matchingRowsModel = new DefaultTableModel(
+                new Object[][]{},
+                new String[]{"Дата", "Час", "Тема", "Вкладення", "Пріорітетність"}
+        );
+
+        for (int i = 0; i < model.getRowCount(); i++) {
+            if (model.getValueAt(i, 0).toString().equals(searchDate)) {
+                matchingRowsModel.addRow(new Object[]{
+                        model.getValueAt(i, 0),
+                        model.getValueAt(i, 1),
+                        model.getValueAt(i, 2),
+                        model.getValueAt(i, 3),
+                        model.getValueAt(i, 4)
+                });
+            }
+        }
+
+        if (matchingRowsModel.getRowCount() > 0) {
+            // Виведемо вікно з усіма рядками, що мають таку саму дату
+            JTable matchingRowsTable = new JTable(matchingRowsModel);
+            JScrollPane scrollPane = new JScrollPane(matchingRowsTable);
+            JOptionPane.showMessageDialog(this, scrollPane, "Рядки з введеною датою", JOptionPane.PLAIN_MESSAGE);
+        } else {
+            JOptionPane.showMessageDialog(this, "Даної дати немає у таблиці", "Повідомлення", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+
+    // Метод для відновлення початкової моделі після виконання пошуку
+    private void restoreInitialModel() {
+        jTable1.setModel(initialModel);
+        enableButtons(true); // Включаємо кнопки після відновлення початкової моделі
+    }
+
+    // Метод для включення або виключення кнопок
+    private void enableButtons(boolean enabled) {
+        jButton2.setEnabled(enabled);
+        jButton3.setEnabled(enabled);
+    }
+
+    private void showSearchResults(DefaultTableModel searchModel) {
+        jTable1.setModel(searchModel);
+        enableButtons(true); // Включаємо кнопки після встановлення нової моделі
+    }
+
+
+
     public static void main(String args[]) {
         java.awt.EventQueue.invokeLater(new Runnable() {
             public void run() {
@@ -196,11 +345,13 @@ public class NewJFrame extends javax.swing.JFrame {
         });
     }
 
-    // Поля класу
     private javax.swing.JButton jButton1;
     private javax.swing.JButton jButton2;
     private javax.swing.JButton jButton3;
     private javax.swing.JButton jButton4;
+    private javax.swing.JButton jButton5; // Додана кнопка для оновлення даних
+    private javax.swing.JButton jButton6; // Додана кнопка для пошуку за датою
+    private javax.swing.JTextField jTextField1; // Додане поле для введення дати
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JTable jTable1;
 }
